@@ -8,9 +8,14 @@ import java.awt.geom.RoundRectangle2D;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class CountdownGUI extends JFrame {
     public static final Color CLOSE_BUTTON_TEXT_COLOR = new Color(246, 236, 217);
@@ -115,7 +120,7 @@ public class CountdownGUI extends JFrame {
         timer.start();
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws ParseException {
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext", "true");
 
@@ -137,28 +142,29 @@ public class CountdownGUI extends JFrame {
         } catch (IOException | FontFormatException ignored) {
         }
 
-        setTimerAt(12, 39, 0);
+        setUpTask(12, 39, 0);
         //Add more at there
 
-        if (args.length > 0) {
-            showTimer(Integer.parseInt(args[0]));
+        if (args.length > 2) {
+            setUpTask(Integer.parseInt(args[0]), Integer.parseInt(args[1]), Integer.parseInt(args[2]));
         }
         //Just for some test
     }
 
-    private static void setTimerAt(int h, int m, int s) {
-        java.util.Timer timer = new java.util.Timer();
+    private static void setUpTask(int a, int b, int c) throws ParseException {
         Calendar calendar = Calendar.getInstance();
-        calendar.set(Calendar.HOUR_OF_DAY, h);
-        calendar.set(Calendar.MINUTE, m);
-        calendar.set(Calendar.SECOND, s);
-        Date date = calendar.getTime();
-        timer.scheduleAtFixedRate(new TimerTask() {
+        int year = calendar.get(Calendar.YEAR);
+        int month = calendar.get(Calendar.MONTH);
+        int day = calendar.get(Calendar.DAY_OF_MONTH);
+        calendar.set(year, month, day, a, b, c);//设置要执行的日期时间
+        Date defaultdate = calendar.getTime();
+        java.util.Timer dTimer = new java.util.Timer();
+        dTimer.schedule(new TimerTask() {
             @Override
             public void run() {
                 showTimer(30);
             }
-        }, date, 1000 * 60 * 60 * 24);
+        }, defaultdate , 24* 60* 60 * 1000);//24* 60* 60 * 1000
     }
 
     private static void showTimer(int time) {
