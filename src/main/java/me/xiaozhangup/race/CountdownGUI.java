@@ -7,9 +7,7 @@ import javax.swing.Timer;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.lang.reflect.Array;
 import java.net.URL;
 import java.text.ParseException;
@@ -26,11 +24,13 @@ public class CountdownGUI extends JFrame {
     public static final Color TIME_DONE_COLOR = new Color(231, 130, 132);
     public static final Color TIME_NEAR_COLOR = new Color(235, 143, 126);
     public static ExecutorService executor = Executors.newFixedThreadPool(30);
+    public static int offset = 0;
     public static final List<Integer> normalDay = List.of(1,2,3,4,5);
     public static URL tickSound;
     public static URL boomSound;
     public static Font font;
     public static Image img = null;
+    public static Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
     private final Timer timer;
     private final JLabel label;
     private int seconds;
@@ -59,7 +59,6 @@ public class CountdownGUI extends JFrame {
         //TimerTask
 
         //Setup Start
-        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
         int width = screenSize.width;
         int height = screenSize.height;
 
@@ -132,7 +131,7 @@ public class CountdownGUI extends JFrame {
         timer.start();
     }
 
-    public static void main(String[] args) throws ParseException {
+    public static void main(String[] args) throws ParseException, AWTException, IOException {
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext", "true");
 
@@ -156,20 +155,72 @@ public class CountdownGUI extends JFrame {
         } catch (IOException | FontFormatException ignored) {
         }
 
-        //Debug
-        //showTimer(8);
-
-        setUpTask(12, 39, 0);
-        if (normalDay.contains(Calendar.getInstance().get(Calendar.DAY_OF_WEEK))){
-            //周12345时的特殊任务
-            setUpTask(10, 39, 0);
+        //Offset file
+        File file = new File(".offset");
+        if (file.exists()) {
+            BufferedReader br = new BufferedReader(new FileReader(file));
+            offset = Integer.parseInt(br.readLine());
+            br.close();
+        } else {
+            file.createNewFile();
+            BufferedWriter wr = new BufferedWriter(new FileWriter(file));
+            wr.write(String.valueOf(0));
+            wr.close();
         }
-        //Add more at there
 
-        if (args.length > 2) {
+        //Tray
+        SystemTray tray = SystemTray.getSystemTray();
+        TrayIcon trayIcon = new TrayIcon(img);
+        trayIcon.setImageAutoSize(true);
+
+        PopupMenu popup = new PopupMenu();
+        MenuItem show = new MenuItem("Direct Show");
+        show.addActionListener(e -> showTimer(30));
+        MenuItem off = new MenuItem("Change Offset");
+        off.addActionListener(e -> {
+            String input = JOptionPane.showInputDialog("请输入新的偏移值 (" + offset + "秒)");
+            if (input == null) return;
+            offset = Integer.parseInt(input);
+            try {
+                BufferedWriter wr = new BufferedWriter(new FileWriter(file));
+                wr.write(String.valueOf(offset));
+                wr.close();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+            popup.remove(3);
+            popup.add("Current offset: " + offset);
+        });
+        MenuItem exit = new MenuItem("Exit");
+        exit.addActionListener(e -> {
+            System.exit(0);
+        });
+
+        popup.add(show);
+        popup.add(off);
+        popup.add(exit);
+        popup.add("Current offset: " + offset);
+        popup.setFont(font.deriveFont(Font.BOLD, 16));
+        trayIcon.setPopupMenu(popup);
+
+        tray.add(trayIcon);
+
+        if (args.length == 1) {
+            offset = Integer.parseInt(args[0]);
+            //Time Offset
+        } else if (args.length > 2) {
             setUpTask(Integer.parseInt(args[0]), Integer.parseInt(args[1]), Integer.parseInt(args[2]));
         }
         //Just for some test
+
+        setUpTask(22,30, 0); //Debug
+
+        setUpTask(12, 40, 0);
+        if (normalDay.contains(Calendar.getInstance().get(Calendar.DAY_OF_WEEK))){
+            //周12345时的特殊任务
+            setUpTask(10, 30, 0);
+        }
+        //Add more at there
     }
 
     private static void setUpTask(int a, int b, int c) throws ParseException {
@@ -178,8 +229,8 @@ public class CountdownGUI extends JFrame {
         int month = calendar.get(Calendar.MONTH);
         int day = calendar.get(Calendar.DAY_OF_MONTH);
         calendar.set(year, month, day, a, b, c);
-        Date defaultdate = calendar.getTime();
-        java.util.Timer dTimer = new java.util.Timer();
+        long l = calendar.getTime().getTime() + (offset * 1000L);
+        Date defaultdate = new Date(l);
 
         //WARN - 如果没有这一行代码，如果时间晚于当前，任务会立即执行一次
         if (defaultdate.before(new Date())) {
@@ -187,6 +238,7 @@ public class CountdownGUI extends JFrame {
         }
         //WARN
 
+        java.util.Timer dTimer = new java.util.Timer();
         dTimer.schedule(new TimerTask() {
             @Override
             public void run() {
